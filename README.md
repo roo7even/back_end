@@ -1,5 +1,5 @@
 # SAFTehnika back-end task
-http server, that returns data in json format
+.Net web API service that returns data in json format
 ## Build/Run
 * Clone project on your computer
 * Run command from terminal 
