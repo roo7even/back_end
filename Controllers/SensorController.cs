@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -36,7 +37,6 @@ namespace back_end.Controllers
                 "LEFT JOIN units ON units.unit_id = metrics.unit_id";
 
             SQLiteCommand dbCommand = new(sqliteQuery, dbController.dbConnection);
-
             SQLiteDataReader result = dbCommand.ExecuteReader();
 
             List<Sensor> sensorList = new();
@@ -94,9 +94,77 @@ namespace back_end.Controllers
 
         }
         [HttpGet("{date}")]
-        public ActionResult<string> Get(string dateTime)
+        public List<SensorMinMax> GetByDate(string date)
         {
-            return "test " + dateTime;
+            List<SensorMinMax> sensorList = new();
+
+            DateTime dt;
+            string[] formats = { "yyyy-MM-dd" };
+            if (!DateTime.TryParseExact(date, formats, System.Globalization.CultureInfo.InvariantCulture, DateTimeStyles.None, out dt))
+            {
+
+                // Can return error if needed or [];
+
+                return sensorList;
+            }
+
+            dbController.OpenConnection();
+
+            string sqliteQuery = "SELECT min(rvalue) as min_val, max(rvalue) as max_val, s.sensor_id, s.name, m.metric_id FROM measures m " + 
+                    "INNER JOIN sensors s ON s.sensor_id = m.sensor_id " + 
+                    "WHERE DATE(m.rtime)= DATE(@date) GROUP BY m.sensor_id, m.metric_id ";
+
+            SQLiteCommand dbCommand = new(sqliteQuery, dbController.dbConnection);
+            dbCommand.Parameters.AddWithValue("@date", date);
+            SQLiteDataReader result = dbCommand.ExecuteReader();
+
+            if (result.HasRows)
+            {
+
+                while (result.Read())
+                {
+
+                    SensorMinMax s = new();
+                    s.Id = int.Parse(result["sensor_id"].ToString());
+                    s.Name = result["name"].ToString();
+
+                    int mId = result["metric_id"].ToString() != "" ? int.Parse(result["metric_id"].ToString()) : 0;
+                    float min = result["min_val"].ToString() != "" ? float.Parse(result["min_val"].ToString()) : 0;
+                    float max = result["max_val"].ToString() != "" ? float.Parse(result["max_val"].ToString()) : 0;
+
+                    if (sensorList.Any(item => item.Id == s.Id))
+                    {
+
+                        var existingSensor = sensorList.FirstOrDefault(item => item.Id == s.Id);
+                        existingSensor.Metrics.Add(new MetricMinMax
+                        {
+                            Id = mId,
+                            Min = min,
+                            Max = max,
+                        });
+                    }
+                    else
+                    {
+                        if (mId > 0)
+                        {
+                            s.Metrics.Add(new MetricMinMax
+                            {
+                                Id = mId,
+                                Min = min,
+                                Max = max,
+                            });
+                        }
+
+                        sensorList.Add(s);
+                    }
+
+                }
+
+            }
+
+            dbController.CloseConnection();
+
+            return sensorList;
         }
     }
 }
