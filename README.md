@@ -6,6 +6,8 @@ http server, that returns data in json format
 ```
 dotnet run
 ```
+## Requierments
+* .Net Framework installed
 ## View data
 Opening link `https://localhost:5001/sensors` in your browser should return following data
 
